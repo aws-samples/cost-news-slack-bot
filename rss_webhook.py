@@ -15,6 +15,7 @@ key_words = ['cost','price','optimize','optimization','costs','prices','pricing'
 # Slack Webhook for Publishing Target
 webhook = os.environ['WEBHOOK']
 
+#where your past posts are stored
 bucket_name = os.environ['BUCKET_NAME']
 
 # RSS Feed
