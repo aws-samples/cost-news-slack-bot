@@ -1,0 +1,253 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Main CF template that builds shared resources and other stacks
+Parameters:
+  DestinationBucket:
+    Type: String
+    Description: Name of the S3 Bucket that is created to hold RSSw data
+    AllowedPattern: (?=^.{3,63}$)(?!^(\d+\.)+\d+$)(^(([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])\.)*([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])$)
+    Default: rssdestinationbucket
+  Webhook:
+    Type: String
+    Description: Get your Slack Webhook from here https://api.slack.com/messaging/webhooks
+  # LayerBucket:
+  #   Type: String
+  #   Description: S3 bucket on AWS Side that has a Zip file with the installed files for the lambda layer.
+  #   Default:  aws-well-architected-labs-ireland
+Mappings:
+  RegionMap:
+       eu-west-1:        {CodeBucket: aws-well-architected-labs-ireland }
+       us-east-2:        {CodeBucket: aws-well-architected-labs-ohio }
+       us-east-1:        {CodeBucket: aws-well-architected-labs-virginia }
+       us-west-1:        {CodeBucket: aws-well-architected-labs-california }
+       us-west-2:        {CodeBucket: aws-well-architected-labs-oregon }
+       ap-southeast-1:   {CodeBucket: aws-well-architected-labs-singapore }
+       eu-central-1:     {CodeBucket: aws-well-architected-labs-frankfurt }
+       eu-west-2:        {CodeBucket: aws-well-architected-labs-london }
+       eu-north-1:       {CodeBucket: aws-well-architected-labs-stockholm }
+       ap-southeast-2:   {CodeBucket: aws-well-architected-labs-ap-sydney }
+       ap-south-1:       {CodeBucket: aws-well-architected-labs-mumbai }
+       ap-northeast-3:   {CodeBucket: aws-well-architected-labs-osaka }
+       ap-northeast-2:   {CodeBucket: aws-well-architected-labs-seoul }
+       ap-northeast-1:   {CodeBucket: aws-well-architected-labs-tokyo }
+       ca-central-1:     {CodeBucket: aws-well-architected-labs-canada }
+       eu-west-3:        {CodeBucket: aws-well-architected-labs-paris }
+       sa-east-1:        {CodeBucket: aws-well-architected-labs-san-paulo }
+Resources:
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName:
+        !Sub "${DestinationBucket}${AWS::AccountId}"
+      LifecycleConfiguration:
+        Rules:
+        - Id: delete-incomplete-mpu-7days
+          Prefix: ''
+          AbortIncompleteMultipartUpload:
+            DaysAfterInitiation: 7
+          Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:            
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'AES256'
+  CloudWatchTrigger:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Lambda RSS Data trigger
+      Name: RSSLambdaCloudWatchTrigger
+      ScheduleExpression: "cron(0 10 * * ? *)"  
+      State: ENABLED
+      Targets:
+        - Arn:
+            Fn::GetAtt:
+            - Lambda
+            - Arn
+          Id: WeeklyTriggerForRSSWdata
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: LambdaRSSWRole
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+        Version: 2012-10-17
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSLambdaExecute
+      Path: /
+      Policies:
+        - PolicyName: "LambdaTWGPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogStreams"
+                Resource: "arn:aws:logs:*:*:*"
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:ListBucket"
+                  - "s3:GetBucketLocation"
+                Resource: !GetAtt S3Bucket.Arn
+  Lambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CFM_RSS_Lambda
+      Description: LambdaFunction of python3.10
+      Runtime: python3.10
+      Code:
+        ZipFile: |
+          from bs4 import BeautifulSoup
+          from datetime import datetime
+          import feedparser
+          import requests
+          import json
+          import logging
+          import boto3
+          import os 
+
+          # Adapted from: https://timothybramlett.com/recieving_notifications_of_rss_feeds_matching_keywords_with_Python.html
+
+          # Just some sample keywords to search for in the title
+          key_words = ['cost','price','optimize','optimization','costs','prices','pricing','advisor', 'graviton','CFM','financial','finops','finance']
+
+          # Slack Webhook for Publishing Target
+          webhook = os.environ['WEBHOOK']
+
+          bucket_name = os.environ['BUCKET_NAME']
+
+          # RSS Feed
+          rss = 'https://aws.amazon.com/about-aws/whats-new/recent/feed/'
+
+          def lambda_handler(event, context):
+
+              try:
+                  # View list of previously shared URLs
+                  s = s3_download()
+                  f = open('/tmp/viewed_urls.txt', 'r')
+                  urls = f.readlines()
+                  urls = [url.rstrip() for url in urls] # remove the '\n' char
+                  f.close()
+
+                  date = datetime.now().strftime("%Y_%m_%d-%I:%M:%S_%p")
+                  logging.info(date + " Logging script execution")
+
+                  feed = feedparser.parse(rss)
+                  for key in feed["entries"]:
+                      url = key['links'][0]['href']
+                      title = key['title']
+                      rawDescription = key['description']
+                      description = BeautifulSoup(rawDescription, 'html.parser')
+
+                      if contains_wanted(title.lower()) and url_is_new(url,urls):
+                          print('{} - {} - {}'.format(title, url, description.get_text()))
+
+                          #msgtitle = title
+                          #msg = '{}\n{}'.format(title, url, description)
+
+                          body = {
+                              "title": title,
+                              "description": description.get_text(),
+                              "url": url,
+                          }
+                          logging.info(title)
+                          jsonData = json.dumps(body)
+                          response = requests.post(webhook, jsonData)
+
+                                  # recording URLs to file
+                          with open('/tmp/viewed_urls.txt', 'a') as f:
+                              f.write('{}\n'.format(url))
+                              f.close()
+                  s3_upload()
+                          
+              except Exception as e:
+                  # Send some context about this error to Lambda Logs
+                  logging.warning("%s" % e)
+
+          def contains_wanted(in_str):
+              # returns true if the in_str contains a keyword
+              # we are interested in. Case-insensitive
+              for wrd in key_words:
+                  if wrd.lower() in in_str:
+                      return True
+              return False
+
+          def url_is_new(urlstr, urls):
+              # returns true if the url string does not exist
+              # in the list of strings extracted from the text file
+              if urlstr in urls:
+                  return False
+              else:
+                  return True
+
+          def s3_download():
+              try:
+                  s3_client = boto3.client('s3')
+                  s3_client.download_file(
+                      Bucket=bucket_name,
+                      Key='cfm_rss_webhook/viewed_urls.txt',
+                      Filename='/tmp/viewed_urls.txt')
+                  
+              except Exception as e:
+                  logging.warning("Welcome! you have no viwed file so we will make one for you")
+                  with open('/tmp/viewed_urls.txt', 'w') as f:
+                      f.write('\n')
+
+          def s3_upload():
+              try:
+                  s3_client = boto3.client('s3')
+                  s3_client.upload_file(
+                    Bucket=bucket_name,
+                    Key='cfm_rss_webhook/viewed_urls.txt',
+                    Filename='/tmp/viewed_urls.txt')
+                  s3_client.upload_file(f'/tmp/viewed_urls.txt', bucket_name, f"cfm_rss_webhook/viewed_urls.txt")
+                  print(f"Data in {bucket_name}")
+              except Exception as e:
+                  logging.warning("%s" % e)
+      Handler: 'index.lambda_handler'
+      MemorySize: 2688
+      Timeout: 300
+      Role: 
+        Fn::GetAtt:
+          - LambdaRole
+          - Arn
+      Environment:
+        Variables:
+          BUCKET_NAME:  !Sub "${DestinationBucket}${AWS::AccountId}"
+          WEBHOOK: !Ref Webhook
+      Architectures:
+           - "arm64"
+      Layers:
+        - !Ref RRSLayer
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${Lambda}"
+      RetentionInDays: 14
+
+  EventPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt Lambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+      SourceArn: !GetAtt CloudWatchTrigger.Arn
+  RRSLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      CompatibleRuntimes:
+        - python3.10
+      Content:
+        S3Bucket: !FindInMap [RegionMap, !Ref "AWS::Region", CodeBucket]
+        S3Key: Cost/Blogs/rss/rss.zip
+      Description: rss layer with BeautifulSoup4, feedparser, requests, urllib3==1.26.15
+      LayerName: rss-layer
