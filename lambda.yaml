@@ -10,10 +10,6 @@ Parameters:
   Webhook:
     Type: String
     Description: Get your Slack Webhook from here https://api.slack.com/messaging/webhooks
-  # LayerBucket:
-  #   Type: String
-  #   Description: S3 bucket on AWS Side that has a Zip file with the installed files for the lambda layer.
-  #   Default:  aws-well-architected-labs-ireland
 Mappings:
   RegionMap:
        eu-west-1:        {CodeBucket: aws-well-architected-labs-ireland }
