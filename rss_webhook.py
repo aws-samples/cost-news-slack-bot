@@ -15,7 +15,6 @@ key_words = ['cost','price','optimize','optimization','costs','prices','pricing'
 # Slack Webhook for Publishing Target
 webhook = os.environ['WEBHOOK']
 
-#where your past posts are stored
 bucket_name = os.environ['BUCKET_NAME']
 
 # RSS Feed
@@ -26,7 +25,7 @@ def lambda_handler(event, context):
     try:
         # View list of previously shared URLs
         s = s3_download()
-        f = open('/tmp/viewed_urls.txt', 'r') #CHANGE TO READ FROM S£
+        f = open('/tmp/viewed_urls.txt', 'r')
         urls = f.readlines()
         urls = [url.rstrip() for url in urls] # remove the '\n' char
         f.close()
@@ -60,7 +59,6 @@ def lambda_handler(event, context):
                 with open('/tmp/viewed_urls.txt', 'a') as f:
                     f.write('{}\n'.format(url))
                     f.close()
-        
         s3_upload()
                 
     except Exception as e:
@@ -94,15 +92,15 @@ def s3_download():
     except Exception as e:
         logging.warning("Welcome! you have no viwed file so we will make one for you")
         with open('/tmp/viewed_urls.txt', 'w') as f:
-             f.write('\n')
+            f.write('\n')
 
 def s3_upload():
     try:
         s3_client = boto3.client('s3')
         s3_client.upload_file(
-          Bucket=bucket_name,
-          Key='cfm_rss_webhook/viewed_urls.txt',
-          Filename='/tmp/viewed_urls.txt')
+        Bucket=bucket_name,
+        Key='cfm_rss_webhook/viewed_urls.txt',
+        Filename='/tmp/viewed_urls.txt')
         s3_client.upload_file(f'/tmp/viewed_urls.txt', bucket_name, f"cfm_rss_webhook/viewed_urls.txt")
         print(f"Data in {bucket_name}")
     except Exception as e:
