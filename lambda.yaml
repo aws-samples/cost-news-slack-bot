@@ -62,7 +62,6 @@ Resources:
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: LambdaRSSWRole
       AssumeRolePolicyDocument:
         Statement:
           - Action:
