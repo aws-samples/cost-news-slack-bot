@@ -243,6 +243,6 @@ Resources:
         - python3.10
       Content:
         S3Bucket: !FindInMap [RegionMap, !Ref "AWS::Region", CodeBucket]
-        S3Key: Cost/Blogs/rss/rss.zip
+        S3Key: Cost/Blogs/layers/rss.zip
       Description: rss layer with BeautifulSoup4, feedparser, requests, urllib3==1.26.15
       LayerName: rss-layer
