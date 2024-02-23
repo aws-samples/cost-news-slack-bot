@@ -4,7 +4,7 @@ Description: Main CF template that builds shared resources and other stacks
 Parameters:
   DestinationBucket:
     Type: String
-    Description: Name of the S3 Bucket that is created to hold RSSw data
+    Description: Name of the S3 Bucket that is created to hold RSS data
     AllowedPattern: (?=^.{3,63}$)(?!^(\d+\.)+\d+$)(^(([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])\.)*([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])$)
     Default: rssdestinationbucket
   Webhook:
