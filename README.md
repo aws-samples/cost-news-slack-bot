@@ -15,7 +15,6 @@ Run this script with a cronjob every minute by adding the following to your cron
 ```
 
 
-
 Lambda Layer:
 
 https://towardsdatascience.com/python-packages-in-aws-lambda-made-easy-8fbc78520e30
