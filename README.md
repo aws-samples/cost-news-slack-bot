@@ -1,4 +1,4 @@
-# rss_to_slack_webhook
+# Cost news slack channel 
 
 Python tool to read an RSS feed and selectively publish articles, based on keywords, to Slack via Webhook
 
