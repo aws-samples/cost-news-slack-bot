@@ -29,3 +29,9 @@ jobs:
       - name: CFN Lint
         run: |
           cfn-lint lambda.yaml
+      - name: Install bandit
+        run: |
+          pip install bandit
+      - name: bandit check
+        run: |
+          bandit -r rss_webhook.py
