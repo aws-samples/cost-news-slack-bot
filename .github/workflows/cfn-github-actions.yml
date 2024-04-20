@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
       inputs:
         name:
-          description: "test"
+          description: "test" #adding a test option to allow running without a PR
           default: "test"
 jobs:
   check-cfn:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest #setting up machine to run tests
     steps:
       - name: Git clone the repository
         uses: actions/checkout@v3
@@ -22,21 +22,23 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.1'
+          #Below is where the solution specific tests are
       - name: Install CFN tools
         run: |
           gem install cfn-nag
       - name: CFN Nag scan
         run: |
-          cfn_nag_scan --input-path  lambda.yaml
+          cfn_nag_scan --input-path  lambda.yaml #change lambda.yaml for own solution file
       - name: Install cfn-lint
         run: |
           pip install cfn-lint
       - name: CFN Lint
         run: |
-          cfn-lint lambda.yaml
+          cfn-lint lambda.yaml #change lambda.yaml for own solution file
       - name: Install bandit
         run: |
           pip install bandit
       - name: bandit check
         run: |
-          bandit -r rss_webhook.py --confidence-level high
+          bandit -r rss_webhook.py --confidence-level high #change lambda.yaml for own python file
+          #Have used --confidence-level high mainly as lambda code using /tmp for local files which this will flag
