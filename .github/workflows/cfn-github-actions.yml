@@ -2,7 +2,7 @@ name: cfn-github-actions
 on:
   pull_request:
     branches:
-    - main
+    - main #name of the default branch, change if you have called it something else
   workflow_dispatch:
       inputs:
         name:
