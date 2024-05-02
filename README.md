@@ -76,10 +76,7 @@ For this solution we will create a slack channel for the cost announcements. For
 
 14. You should have a Webhook that looks like below. Keep a copy of this to hand as we will use in the next section:
 
-
-
-https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX
-
+![1.14.Webhook.png](/screen-shots/1.14.Webhook.png)
 
 
 ### 2 Deploy AWS CloudFormation Stack
